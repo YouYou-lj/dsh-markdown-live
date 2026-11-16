@@ -49,13 +49,13 @@
 ## 开发
 
 ```sh
+npm install                     # 安装固定版本 `lexical`（开发依赖）
+npm test                        # 构建新鲜度 + 三套测试
 node scripts/build.mjs          # 由 src/client/*.cjs 生成 client.js
 node tests/run-tests.mjs        # 语法、分词、列表、行切分、bundle、manifest
 node tests/markdown-matrix.mjs  # 每种渲染语法一行
 node tests/lexical-harness.mjs  # 面向编辑器的一层代码，跑真实 Lexical
-```
-
-`npm test` 会依次跑完这三套。无头测试的 `lexical` 版本来自 `devDependencies`，与 DSH 捆绑版本保持一致——升级它即等于验证新内核。
+```无头测试的 `lexical` 版本来自 `devDependencies`，与 DSH 捆绑版本保持一致——升级它即等于验证新内核。
 
 ## 许可证
 

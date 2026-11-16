@@ -69,13 +69,13 @@ policy, and the weekly drift check.
 ## Development
 
 ```sh
+npm install                     # dev dependency: the pinned `lexical`
+npm test                        # build freshness + all three suites
 node scripts/build.mjs          # regenerate client.js from src/client/*.cjs
 node tests/run-tests.mjs        # grammar, inline, lists, traversal, bundle, manifest
 node tests/markdown-matrix.mjs  # one row per rendered construct
 node tests/lexical-harness.mjs  # editor-facing code against real Lexical
-```
-
-`npm test` runs all three. The harness resolves `lexical` from
+``` The harness resolves `lexical` from
 `devDependencies`, which is pinned to the version DSH bundles — bumping it is
 how a new composer version gets checked.
 
