@@ -1,0 +1,73 @@
+name: Upstream drift
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compare published runtime against the declared range
+        id: drift
+        run: |
+          set +e
+          RANGE=$(node -p "require('./package.json').engines.dsh")
+          DSH=$(npm view @deepseek-ai/dsh-app-boot version 2>/dev/null)
+          LEXICAL=$(npm view lexical version 2>/dev/null)
+          PINNED=$(node -p "require('./package.json').devDependencies.lexical")
+          echo "range=$RANGE" >> "$GITHUB_OUTPUT"
+          echo "dsh=$DSH" >> "$GITHUB_OUTPUT"
+          echo "lexical=$LEXICAL" >> "$GITHUB_OUTPUT"
+          if [ -n "$DSH" ] && npx --yes semver --range "$RANGE" "$DSH" >/dev/null 2>&1; then
+            echo "dsh_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dsh_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$LEXICAL" = "$PINNED" ]; then
+            echo "lexical_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "lexical_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open one tracking issue when something moved
+        if: steps.drift.outputs.dsh_ok == 'false' || steps.drift.outputs.lexical_ok == 'false'
+        uses: actions/github-script@v7
+        env:
+          DSH: ${{ steps.drift.outputs.dsh }}
+          LEXICAL: ${{ steps.drift.outputs.lexical }}
+          RANGE: ${{ steps.drift.outputs.range }}
+          DSH_OK: ${{ steps.drift.outputs.dsh_ok }}
+          LEXICAL_OK: ${{ steps.drift.outputs.lexical_ok }}
+        with:
+          script: |
+            const dsh = process.env.DSH
+            const lexical = process.env.LEXICAL
+            const title = `Upstream drift: DSH ${dsh || '(unknown)'}, Lexical ${lexical || '(unknown)'}`
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo, state: 'open', labels: 'upstream-drift',
+            })
+            if (issues.some(issue => issue.title === title)) {
+              core.info(`Already tracked: ${title}`)
+              return
+            }
+            const body = [
+              'A published upstream version moved outside what this plugin was verified against.',
+              '',
+              `- \`engines.dsh\`: \`${process.env.RANGE}\``,
+              `- latest \`@deepseek-ai/dsh-app-boot\`: \`${dsh || 'unknown'}\` (${process.env.DSH_OK === 'true' ? 'compatible' : 'OUT OF RANGE'})`,
+              `- latest \`lexical\`: \`${lexical || 'unknown'}\` (${process.env.LEXICAL_OK === 'true' ? 'pinned' : 'DRIFTED'})`,
+              '',
+              'Before releasing: bump `devDependencies.lexical` (or widen `engines.dsh`), run `npm test`, and update COMPATIBILITY.md.',
+            ].join('\n')
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ['upstream-drift'],
+            })

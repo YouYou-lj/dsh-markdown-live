@@ -32,6 +32,7 @@ const { parseInline } = require('./inline.cjs');
 const { locateWithin } = require('./continuation.cjs');
 const { ALL_CLASSES, applySyntax, splitSyntax } = require('./syntax.cjs');
 const { normalizeNewlines } = require('./newlines.cjs');
+const { probeContract } = require('./compat.cjs');
 
 /**
  * Whether this browser exposes the CSS Custom Highlight API. Without it the
@@ -342,10 +343,20 @@ function createRenderer() {
     document.addEventListener('selectionchange', schedule);
     setTimeout(() => {
       if (disposed) return;
-      // A composer card without an input is a real contract break; a page with
-      // no composer at all is simply an idle surface.
-      if (document.querySelector(COMPOSER_INPUT) === null && document.querySelector(COMPOSER_CARD) !== null) {
-        console.error('[markdown-live] composer card without [data-composer-input]; rendering is inert');
+      const root = document.querySelector(COMPOSER_INPUT);
+      if (root === null) {
+        // A composer card without an input is a real contract break; a page
+        // with no composer at all is simply an idle surface.
+        if (document.querySelector(COMPOSER_CARD) !== null) {
+          console.error('[markdown-live] composer card without [data-composer-input]; rendering is inert');
+        }
+        return;
+      }
+      // Name what a DSH update moved, so an upgrade leaves a diagnosable trace
+      // instead of silence. Features degrade one by one; nothing is disabled.
+      const probe = probeContract(root);
+      if (!probe.ok) {
+        console.error(`[markdown-live] host contract changed: ${probe.missing.join(', ')}; affected features degrade, the rest keeps working`);
       }
     }, 3000);
     schedule();

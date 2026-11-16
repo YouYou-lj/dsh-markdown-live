@@ -27,6 +27,7 @@ const { applyLineMarks, planLineMarks, HEADING_CLASSES } = require('../src/clien
 const { applySyntax, syntaxPlan, CLASSES } = require('../src/client/syntax.cjs');
 const { caretLineOf } = require('../src/client/render.cjs');
 const { tokenize } = require('../src/client/tokens.cjs');
+const { probeContract } = require('../src/client/compat.cjs');
 const { continuationOf, exitMarkerOf, exitPlanOf, isEmptyListItem } = require('../src/client/list.cjs');
 const { readLines, planForCaret, kindAt } = require('../src/client/continuation.cjs');
 const { createRenumber, renumberPlan, SETTLE_MS } = require('../src/client/renumber.cjs');
@@ -472,6 +473,76 @@ test('collapse: an unsplit marker is reported instead of hiding content', () => 
   const requests = applySyntax(collectLines(root), null, touched);
   assert.deepEqual(requests, [{ lineIndex: 0, boundaries: [2] }]);
   assert.equal(touched.size, 0, 'nothing is hidden when the marker is not isolated');
+});
+
+
+// --------------------------------------------------------------- host contract
+
+/**
+ * Build a stub composer whose contract pieces are selectable.
+ * @param {{editor?: boolean, split?: boolean, text?: boolean}} options - pieces to include.
+ * @returns {object} the stub root.
+ */
+function stubComposer(options = {}) {
+  const withSplit = options.split !== false;
+  const withText = options.text !== false;
+  const textClass = withText
+    ? { prototype: { splitText: withSplit ? () => {} : undefined, toggleUnmergeable: () => {} } }
+    : undefined;
+  return {
+    nodeType: 1,
+    children: [{ nodeType: 1, querySelectorAll: () => [{}] }],
+    __lexicalEditor: options.editor === false ? null : {
+      update: () => {},
+      getEditorState: () => {},
+      _nodes: {
+        get: name => (name === 'linebreak' ? { klass: function LineBreak() {} } : { klass: textClass }),
+      },
+    },
+  };
+}
+
+test('compat: a complete contract probes clean', () => {
+  const previousCSS = globalThis.CSS;
+  const previousHighlight = globalThis.Highlight;
+  globalThis.CSS = { highlights: {} };
+  globalThis.Highlight = function Highlight() {};
+  try {
+    assert.deepEqual(probeContract(stubComposer()), { ok: true, missing: [] });
+  } finally {
+    globalThis.CSS = previousCSS;
+    globalThis.Highlight = previousHighlight;
+  }
+});
+
+test('compat: a moved piece is named instead of thrown', () => {
+  const previousCSS = globalThis.CSS;
+  const previousHighlight = globalThis.Highlight;
+  globalThis.CSS = { highlights: {} };
+  globalThis.Highlight = function Highlight() {};
+  try {
+    assert.equal(probeContract(stubComposer({ editor: false })).missing.includes('editor.__lexicalEditor'), true);
+    assert.equal(probeContract(stubComposer({ text: false })).missing.includes('linebreak node class'), false);
+    assert.equal(probeContract(stubComposer({ split: false })).missing.includes('text.splitText'), true);
+  } finally {
+    globalThis.CSS = previousCSS;
+    globalThis.Highlight = previousHighlight;
+  }
+});
+
+test('compat: an absent composer reports the hook, not a crash', () => {
+  const previousCSS = globalThis.CSS;
+  const previousHighlight = globalThis.Highlight;
+  globalThis.CSS = { highlights: {} };
+  globalThis.Highlight = function Highlight() {};
+  try {
+    const result = probeContract(null);
+    assert.equal(result.ok, false);
+    assert.equal(result.missing.includes('[data-composer-input]'), true);
+  } finally {
+    globalThis.CSS = previousCSS;
+    globalThis.Highlight = previousHighlight;
+  }
 });
 
 // ------------------------------------------------------- list continuation read

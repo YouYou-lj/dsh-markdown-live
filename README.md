@@ -54,16 +54,30 @@ toggle it in **Settings → Plugins**.
   whole draft in one paragraph).
 - `---` is left as typed: a rule is not drawn.
 
+## Compatibility
+
+Built for the DSH desktop app and a `dsh web` server. Verified against DSH
+desktop `2.0.23-next`, runtime `0.2.2-rc.3`, Lexical `0.49.0`; the package
+declares `engines.dsh = ">=0.2.0-rc.1 <0.3.0-0"`, so a runtime outside that
+window reports an unmet requirement instead of failing silently.
+
+Every host contract is feature-probed and degrades on its own — an update can
+lose one feature, never the composer. After an update the console names what
+moved. See [COMPATIBILITY.md](COMPATIBILITY.md) for the contract list, the
+policy, and the weekly drift check.
+
 ## Development
 
 ```sh
 node scripts/build.mjs          # regenerate client.js from src/client/*.cjs
 node tests/run-tests.mjs        # grammar, inline, lists, traversal, bundle, manifest
 node tests/markdown-matrix.mjs  # one row per rendered construct
+node tests/lexical-harness.mjs  # editor-facing code against real Lexical
 ```
 
-A second suite runs the editor-facing code against the real Lexical 0.49 in a
-sibling checkout (`../dsh-md-harness/tests/lexical-harness.mjs`).
+`npm test` runs all three. The harness resolves `lexical` from
+`devDependencies`, which is pinned to the version DSH bundles — bumping it is
+how a new composer version gets checked.
 
 ## License
 

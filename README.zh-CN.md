@@ -40,15 +40,22 @@
 - 序号不做列对齐：`1.` 与 `10.` 的文字起点相差一个字符位；折行后行首贴左边距（输入框把整篇草稿放在同一个段落里）。
 - `---` 保持原样，不画横线。
 
+## 兼容性
+
+面向 DSH 桌面端与 `dsh web` 服务。已实测：DSH 桌面端 `2.0.23-next`、运行时 `0.2.2-rc.3`、Lexical `0.49.0`；包内声明 `engines.dsh = ">=0.2.0-rc.1 <0.3.0-0"`，运行时超出该窗口会报告"不满足要求"，而不是之后静默失效。
+
+所有宿主契约都做了特性探测，单个契约变化只关掉对应功能，输入框本身不受影响；更新后控制台会指出具体缺失项。契约清单、策略与每周漂移检查见 [COMPATIBILITY.md](COMPATIBILITY.md)。
+
 ## 开发
 
 ```sh
 node scripts/build.mjs          # 由 src/client/*.cjs 生成 client.js
 node tests/run-tests.mjs        # 语法、分词、列表、行切分、bundle、manifest
 node tests/markdown-matrix.mjs  # 每种渲染语法一行
+node tests/lexical-harness.mjs  # 面向编辑器的一层代码，跑真实 Lexical
 ```
 
-另有一套真实 Lexical 0.49 的无头测试，位于同级目录 `../dsh-md-harness/tests/lexical-harness.mjs`。
+`npm test` 会依次跑完这三套。无头测试的 `lexical` 版本来自 `devDependencies`，与 DSH 捆绑版本保持一致——升级它即等于验证新内核。
 
 ## 许可证
 

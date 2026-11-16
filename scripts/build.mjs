@@ -16,6 +16,7 @@ const packageName = 'dsh-markdown-live';
 /** Modules in dependency order; the entry is last. */
 const MODULES = [
   './constants.cjs',
+  './compat.cjs',
   './grammar.cjs',
   './list.cjs',
   './inline.cjs',
