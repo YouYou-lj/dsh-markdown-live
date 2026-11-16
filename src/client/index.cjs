@@ -16,7 +16,7 @@
 const { createContinuation } = require('./continuation.cjs');
 const { createRenderer, highlightApiAvailable } = require('./render.cjs');
 const { createRenumber } = require('./renumber.cjs');
-const { registerSettingsPage, registerVersionChip } = require('./chip.cjs');
+const { registerDetailSection, registerSettingsPage, registerVersionChip } = require('./chip.cjs');
 
 /** Version info compiled into the bundle by scripts/build.mjs. */
 let runtime = { version: '0.0.0', repository: 'https://github.com/YouYou-lj/dsh-markdown-live' };
@@ -48,9 +48,11 @@ function apply(ctx) {
   const renumber = createRenumber();
   let chip = null;
   let page = null;
+  let detail = null;
   try {
     chip = registerVersionChip(ctx, runtime);
     page = registerSettingsPage(ctx, runtime);
+    detail = registerDetailSection(ctx, runtime);
   } catch (error) {
     // A missing slot service must never cost the rendering layer.
     console.warn('[markdown-live] version surfaces skipped', error);
@@ -62,6 +64,7 @@ function apply(ctx) {
   const dispose = () => {
     if (chip !== null) chip.dispose();
     if (page !== null) page.dispose();
+    if (detail !== null) detail.dispose();
     renumber.dispose();
     continuation.dispose();
     renderer.dispose();

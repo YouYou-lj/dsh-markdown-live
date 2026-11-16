@@ -29,6 +29,7 @@ const { caretLineOf } = require('../src/client/render.cjs');
 const { tokenize } = require('../src/client/tokens.cjs');
 const { probeContract } = require('../src/client/compat.cjs');
 const { checkForUpdate, compareVersions, manifestUrlOf, parseVersion, versionFromManifest } = require('../src/client/update.cjs');
+const { subjectBundleName } = require('../src/client/chip.cjs');
 const { continuationOf, exitMarkerOf, exitPlanOf, isEmptyListItem } = require('../src/client/list.cjs');
 const { readLines, planForCaret, kindAt } = require('../src/client/continuation.cjs');
 const { createRenumber, renumberPlan, SETTLE_MS } = require('../src/client/renumber.cjs');
@@ -495,6 +496,13 @@ test('versions: the upstream manifest and its URL are read safely', () => {
   assert.equal(manifestUrlOf('https://github.com/YouYou-lj/dsh-markdown-live'),
     'https://raw.githubusercontent.com/YouYou-lj/dsh-markdown-live/main/package.json');
   assert.equal(manifestUrlOf('https://example.com/nope'), null);
+});
+
+test('versions: the detail section recognises its own bundle', () => {
+  assert.equal(subjectBundleName({ kind: 'bundle', pkg: { name: 'dsh-markdown-live' } }), 'dsh-markdown-live');
+  assert.equal(subjectBundleName({ kind: 'item', id: 'dsh-markdown-live' }), 'dsh-markdown-live');
+  assert.equal(subjectBundleName({ kind: 'bundle', pkg: { name: 'other-plugin' } }), 'other-plugin');
+  assert.equal(subjectBundleName(null), null);
 });
 
 test('versions: the check reports update, current and unknown', async () => {

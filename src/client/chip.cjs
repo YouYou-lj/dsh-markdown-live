@@ -176,6 +176,125 @@ function createSettingsPage(React, runtime) {
 }
 
 /**
+ * The bundle name a plugin-manager detail page is about.
+ * @param {{kind: string, pkg?: {name?: string}, id?: string}} subject - the detail subject.
+ * @returns {string | null} the package name, or null when unknown.
+ */
+function subjectBundleName(subject) {
+  if (subject === null || subject === undefined) return null;
+  if (typeof subject.pkg === 'object' && subject.pkg !== null && typeof subject.pkg.name === 'string') return subject.pkg.name;
+  if (typeof subject.id === 'string') return subject.id;
+  return null;
+}
+
+/**
+ * Build the update section shown on this bundle's page in the plugin manager.
+ *
+ * @param {object} React - the host's React.
+ * @param {{version: string, repository: string}} runtime - compiled-in version info.
+ * @returns {Function} the component.
+ */
+function createDetailSection(React, runtime) {
+  const h = React.createElement;
+  const row = { display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', lineHeight: '20px' };
+  const heading = { fontSize: '16px', fontWeight: 600, lineHeight: '24px', margin: '8px 0 0' };
+  const button = {
+    padding: '2px 10px',
+    fontSize: '12px',
+    lineHeight: '20px',
+    borderRadius: 'var(--dsw-radius-sm, 6px)',
+    border: '1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.3))',
+    background: 'transparent',
+    color: 'inherit',
+    cursor: 'pointer',
+  };
+  const link = { color: 'var(--dsw-alias-link, #2f7ce0)', textDecoration: 'underline', textUnderlineOffset: '2px' };
+
+  /**
+   * The detail section; renders nothing for other plugins.
+   * @param {{subject?: object}} props - owner props.
+   * @returns {object | null} a React element or null.
+   */
+  function DetailSection({ subject }) {
+    const own = subjectBundleName(subject) === 'dsh-markdown-live';
+    const [state, setState] = React.useState({ status: 'idle', latest: null });
+
+    const run = () => {
+      setState({ status: 'checking', latest: null });
+      checkForUpdate({
+        fetch: typeof window === 'undefined' || typeof window.fetch !== 'function' ? undefined : window.fetch.bind(window),
+        repository: runtime.repository,
+        current: runtime.version,
+      }).then(setState);
+    };
+
+    React.useEffect(() => {
+      if (own) run();
+    }, [own]);
+
+    if (!own) return null;
+
+    const text = state.status === 'checking'
+      ? '正在检查…'
+      : state.status === 'update'
+        ? `发现新版本 v${state.latest}`
+        : state.status === 'current'
+          ? '已是最新版本'
+          : state.status === 'unknown'
+            ? '无法检查（网络不可用或受限）'
+            : '—';
+
+    return h('section', { style: { display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '8px' } },
+      h('h3', { style: heading }, '更新'),
+      h('div', { style: row }, h('span', { style: { width: '96px', color: 'var(--dsw-alias-label-secondary)' } }, '当前版本'), h('strong', null, `v${runtime.version}`)),
+      h('div', { style: row }, h('span', { style: { width: '96px', color: 'var(--dsw-alias-label-secondary)' } }, '最新版本'), h('span', null, text)),
+      h('div', { style: row },
+        h('button', { type: 'button', style: button, onClick: run }, '检查更新'),
+        h('a', { href: runtime.repository, target: '_blank', rel: 'noreferrer', style: link }, '打开仓库升级')),
+    );
+  }
+
+  return DetailSection;
+}
+
+/**
+ * Register the update section on the plugin manager's bundle detail page.
+ *
+ * @param {object} ctx - the Cordis client context.
+ * @param {{version: string, repository: string}} runtime - compiled-in version info.
+ * @returns {{dispose: () => void}} the registration handle.
+ */
+function registerDetailSection(ctx, runtime) {
+  let timer = 0;
+  let attempts = 0;
+
+  /**
+   * Try once, then retry while the slot service is still missing.
+   * @returns {void}
+   */
+  const attempt = () => {
+    const slots = ctx === null || ctx === undefined ? null : ctx.slots;
+    if (slots !== null && slots !== undefined && typeof slots.inject === 'function' && typeof slots.register === 'function') {
+      try {
+        slots.inject('plugins.detail.section', () => slots.register({
+          name: 'plugins.detail.section',
+          id: 'markdown-live-update',
+          order: 40,
+        }, createDetailSection(require('react'), runtime)));
+      } catch (error) {
+        console.warn('[markdown-live] detail update section unavailable', error);
+      }
+      return;
+    }
+    attempts += 1;
+    if (attempts <= 6) timer = setTimeout(attempt, 400 * attempts);
+  };
+
+  attempt();
+  return { dispose() { if (timer !== 0) clearTimeout(timer); timer = 0; } };
+}
+
+/**
  * Register the settings page inside Settings → Plugins, waiting briefly for the
  * slot service.
  *
@@ -214,4 +333,7 @@ function registerSettingsPage(ctx, runtime) {
   return { dispose() { if (timer !== 0) clearTimeout(timer); timer = 0; } };
 }
 
-module.exports = { createChip, createSettingsPage, registerSettingsPage, registerVersionChip };
+module.exports = {
+  createChip, createDetailSection, createSettingsPage, registerDetailSection, registerSettingsPage,
+  registerVersionChip, subjectBundleName,
+};
