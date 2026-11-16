@@ -44,14 +44,21 @@ Plugin Market** (search *Markdown composer*), or **Settings → Plugins → Add
 plugin** with the package directory. Reload the page after installing, then
 toggle it in **Settings → Plugins**.
 
-## Version chip
+## Version chip and update check
 
-The composer dock shows the installed version (`v1.2.0`). When the repository
+**Settings → Plugins → Markdown composer** shows the installed version, a
+*Check for updates* button, the latest version found on the repository, and a
+link that opens it. The check reads the repository's `package.json` on demand.
+
+The composer dock also shows the installed version (`v1.3.0`). When the repository
 publishes a newer one, the chip becomes a link — `v1.2.0 → v1.3.0` — that opens
-the repository so you can update. The check reads the repository's
-`package.json` once per page; offline, rate-limited, or blocked network simply
-leaves the installed version shown. The chip is optional decoration: if the dock
-slot is missing, rendering is unaffected.
+the repository so you can update. Offline, rate-limited, or blocked network simply
+leaves the installed version shown. Both surfaces are optional decoration: a
+missing slot never affects rendering.
+
+Installs ship runtime and display files only — `client.js`, `index.js`, the
+patch, locale, icon, README and LICENSE. `src/`, `scripts/`, `tests/` and CI
+configuration stay in the repository.
 
 ## Notes
 

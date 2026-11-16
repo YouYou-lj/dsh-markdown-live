@@ -962,9 +962,13 @@ test('manifest: bundle and client declarations', () => {
   assert.equal(manifest.exports['./locale/*.json'], './locale/*.json');
 });
 
-test('manifest: files covers every runtime and display resource', () => {
-  for (const entry of ['index.js', 'client.js', 'cordis.patch.yml', 'locale', 'icon.svg', 'README.md', 'src']) {
+test('manifest: files ships runtime and display resources only', () => {
+  for (const entry of ['index.js', 'client.js', 'cordis.patch.yml', 'locale', 'icon.svg', 'README.md', 'LICENSE']) {
     assert.equal(manifest.files.includes(entry), true, `files missing ${entry}`);
+  }
+  // Development material stays in the repository, not in an installed package.
+  for (const devOnly of ['tests', 'scripts', 'src']) {
+    assert.equal(manifest.files.includes(devOnly), false, `files must not ship ${devOnly}`);
   }
 });
 

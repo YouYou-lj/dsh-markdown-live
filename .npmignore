@@ -1,0 +1,10 @@
+tests
+tests/**
+scripts
+scripts/**
+src
+src/**
+.github
+package-lock.json
+.gitignore
+node_modules

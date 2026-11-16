@@ -1708,7 +1708,116 @@ window.__ModuleLoader__.load({
         };
       }
       
-      module.exports = { createChip, registerVersionChip };
+      /**
+       * Build the Plugins-settings page: the installed version, a manual check, and
+       * the repository link.
+       *
+       * @param {object} React - the host's React.
+       * @param {{version: string, repository: string}} runtime - compiled-in version info.
+       * @returns {Function} the component.
+       */
+      function createSettingsPage(React, runtime) {
+        const h = React.createElement;
+        const row = { display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', lineHeight: '20px' };
+        const button = {
+          padding: '2px 10px',
+          fontSize: '12px',
+          lineHeight: '20px',
+          borderRadius: 'var(--dsw-radius-sm, 6px)',
+          border: '1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.3))',
+          background: 'transparent',
+          color: 'inherit',
+          cursor: 'pointer',
+        };
+        const link = { color: 'var(--dsw-alias-link, #2f7ce0)', textDecoration: 'underline', textUnderlineOffset: '2px' };
+      
+        /**
+         * The settings page.
+         * @returns {object} a React element.
+         */
+        function SettingsPage() {
+          const [state, setState] = React.useState({ status: 'idle', latest: null });
+      
+          /**
+           * Run one upstream check.
+           * @returns {void}
+           */
+          const run = () => {
+            setState({ status: 'checking', latest: null });
+            checkForUpdate({
+              fetch: typeof window === 'undefined' || typeof window.fetch !== 'function' ? undefined : window.fetch.bind(window),
+              repository: runtime.repository,
+              current: runtime.version,
+            }).then(setState);
+          };
+      
+          React.useEffect(() => { run(); }, []);
+      
+          const text = state.status === 'checking'
+            ? '正在检查…'
+            : state.status === 'update'
+              ? `发现新版本 v${state.latest}`
+              : state.status === 'current'
+                ? '已是最新版本'
+                : state.status === 'unknown'
+                  ? '无法检查（网络不可用或受限）'
+                  : '';
+      
+          return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '14px' } },
+            h('div', { style: row }, h('span', null, '当前版本'), h('strong', null, `v${runtime.version}`)),
+            h('div', { style: row }, h('span', null, '最新版本'), h('span', { style: { color: 'var(--dsw-alias-label-secondary)' } }, text || '—')),
+            h('div', { style: row },
+              h('button', { type: 'button', style: button, onClick: run }, '检查更新'),
+              h('a', { href: runtime.repository, target: '_blank', rel: 'noreferrer', style: link }, '打开仓库升级')),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-caption)', lineHeight: '18px' } },
+              '更新方式：在「插件」中移除本插件后再从 GitHub 添加，或执行 ',
+              h('code', null, 'dsh plugin --profile desktop add github:YouYou-lj/dsh-markdown-live'), '。'),
+          );
+        }
+      
+        return SettingsPage;
+      }
+      
+      /**
+       * Register the settings page inside Settings → Plugins, waiting briefly for the
+       * slot service.
+       *
+       * @param {object} ctx - the Cordis client context.
+       * @param {{version: string, repository: string}} runtime - compiled-in version info.
+       * @returns {{dispose: () => void}} the registration handle.
+       */
+      function registerSettingsPage(ctx, runtime) {
+        let timer = 0;
+        let attempts = 0;
+      
+        /**
+         * Try once, then retry while the slot service is still missing.
+         * @returns {void}
+         */
+        const attempt = () => {
+          const slots = ctx === null || ctx === undefined ? null : ctx.slots;
+          if (slots !== null && slots !== undefined && typeof slots.inject === 'function' && typeof slots.register === 'function') {
+            try {
+              slots.inject('settings.plugins.tab', () => slots.register({
+                name: 'settings.plugins.tab',
+                id: 'markdown-live',
+                order: 40,
+                label: 'Markdown composer',
+              }, createSettingsPage(require('react'), runtime)));
+            } catch (error) {
+              console.warn('[markdown-live] settings page unavailable', error);
+            }
+            return;
+          }
+          attempts += 1;
+          if (attempts <= 6) timer = setTimeout(attempt, 400 * attempts);
+        };
+      
+        attempt();
+        return { dispose() { if (timer !== 0) clearTimeout(timer); timer = 0; } };
+      }
+      
+      module.exports = { createChip, createSettingsPage, registerSettingsPage, registerVersionChip };
       
     });
 
@@ -3081,7 +3190,7 @@ window.__ModuleLoader__.load({
       const { createContinuation } = require('./continuation.cjs');
       const { createRenderer, highlightApiAvailable } = require('./render.cjs');
       const { createRenumber } = require('./renumber.cjs');
-      const { registerVersionChip } = require('./chip.cjs');
+      const { registerSettingsPage, registerVersionChip } = require('./chip.cjs');
       
       /** Version info compiled into the bundle by scripts/build.mjs. */
       let runtime = { version: '0.0.0', repository: 'https://github.com/YouYou-lj/dsh-markdown-live' };
@@ -3112,11 +3221,13 @@ window.__ModuleLoader__.load({
         const renderer = createRenderer();
         const renumber = createRenumber();
         let chip = null;
+        let page = null;
         try {
           chip = registerVersionChip(ctx, runtime);
+          page = registerSettingsPage(ctx, runtime);
         } catch (error) {
           // A missing slot service must never cost the rendering layer.
-          console.warn('[markdown-live] version chip skipped', error);
+          console.warn('[markdown-live] version surfaces skipped', error);
         }
         // A marker the continuation inserts changes the numbering below it; repair
         // immediately instead of waiting for the settle timer.
@@ -3124,6 +3235,7 @@ window.__ModuleLoader__.load({
       
         const dispose = () => {
           if (chip !== null) chip.dispose();
+          if (page !== null) page.dispose();
           renumber.dispose();
           continuation.dispose();
           renderer.dispose();
@@ -3155,7 +3267,7 @@ window.__ModuleLoader__.load({
     });
 
     __define('./version.cjs', function (module, exports, require) {
-      module.exports = { version: "1.2.0", repository: "https://github.com/YouYou-lj/dsh-markdown-live" };
+      module.exports = { version: "1.3.0", repository: "https://github.com/YouYou-lj/dsh-markdown-live" };
     });
 
     var entry = __load('./index.cjs');

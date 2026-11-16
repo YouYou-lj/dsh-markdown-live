@@ -16,7 +16,7 @@
 const { createContinuation } = require('./continuation.cjs');
 const { createRenderer, highlightApiAvailable } = require('./render.cjs');
 const { createRenumber } = require('./renumber.cjs');
-const { registerVersionChip } = require('./chip.cjs');
+const { registerSettingsPage, registerVersionChip } = require('./chip.cjs');
 
 /** Version info compiled into the bundle by scripts/build.mjs. */
 let runtime = { version: '0.0.0', repository: 'https://github.com/YouYou-lj/dsh-markdown-live' };
@@ -47,11 +47,13 @@ function apply(ctx) {
   const renderer = createRenderer();
   const renumber = createRenumber();
   let chip = null;
+  let page = null;
   try {
     chip = registerVersionChip(ctx, runtime);
+    page = registerSettingsPage(ctx, runtime);
   } catch (error) {
     // A missing slot service must never cost the rendering layer.
-    console.warn('[markdown-live] version chip skipped', error);
+    console.warn('[markdown-live] version surfaces skipped', error);
   }
   // A marker the continuation inserts changes the numbering below it; repair
   // immediately instead of waiting for the settle timer.
@@ -59,6 +61,7 @@ function apply(ctx) {
 
   const dispose = () => {
     if (chip !== null) chip.dispose();
+    if (page !== null) page.dispose();
     renumber.dispose();
     continuation.dispose();
     renderer.dispose();
