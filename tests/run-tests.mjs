@@ -491,6 +491,7 @@ function stubComposer(options = {}) {
     : undefined;
   return {
     nodeType: 1,
+    textContent: options.empty === true ? '' : '# 标题',
     children: [{ nodeType: 1, querySelectorAll: () => [{}] }],
     __lexicalEditor: options.editor === false ? null : {
       update: () => {},
@@ -524,6 +525,24 @@ test('compat: a moved piece is named instead of thrown', () => {
     assert.equal(probeContract(stubComposer({ editor: false })).missing.includes('editor.__lexicalEditor'), true);
     assert.equal(probeContract(stubComposer({ text: false })).missing.includes('linebreak node class'), false);
     assert.equal(probeContract(stubComposer({ split: false })).missing.includes('text.splitText'), true);
+  } finally {
+    globalThis.CSS = previousCSS;
+    globalThis.Highlight = previousHighlight;
+  }
+});
+
+test('compat: an empty draft never reports missing text elements', () => {
+  const previousCSS = globalThis.CSS;
+  const previousHighlight = globalThis.Highlight;
+  globalThis.CSS = { highlights: {} };
+  globalThis.Highlight = function Highlight() {};
+  try {
+    const empty = stubComposer({ empty: true });
+    empty.children = [{ nodeType: 1, querySelectorAll: () => [] }];
+    assert.deepEqual(probeContract(empty), { ok: true, missing: [] });
+    const rendered = stubComposer();
+    rendered.children = [{ nodeType: 1, querySelectorAll: () => [] }];
+    assert.equal(probeContract(rendered).missing.includes('data-lexical-text elements'), true);
   } finally {
     globalThis.CSS = previousCSS;
     globalThis.Highlight = previousHighlight;

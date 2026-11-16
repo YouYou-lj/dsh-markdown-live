@@ -44,9 +44,17 @@ function probeContract(root) {
     missing.push('[data-composer-input]');
     return { ok: false, missing };
   }
-  let textElements = 0;
-  for (const child of root.children) textElements += child.querySelectorAll('[data-lexical-text]').length;
-  if (textElements === 0) missing.push('data-lexical-text elements');
+  // An empty draft legitimately has no text elements yet, so the shape is only
+  // required once the composer actually holds text.
+  const text = typeof root.textContent === 'string' ? root.textContent : '';
+  if (text.trim() !== '') {
+    let textElements = 0;
+    for (const child of root.children) {
+      if (typeof child.querySelectorAll !== 'function') continue;
+      textElements += child.querySelectorAll('[data-lexical-text]').length;
+    }
+    if (textElements === 0) missing.push('data-lexical-text elements');
+  }
 
   const editor = editorOf(root);
   if (editor === null) {
