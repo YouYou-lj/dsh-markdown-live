@@ -22,17 +22,16 @@
 
 ## 安装
 
-插件市场 —— **设置 → DSH 插件市场**，搜索 *Markdown composer*，安装后刷新页面。
+这是一个 Web-UI 插件：它运行在浏览器侧的客户端，桌面端与 `dsh web` 服务渲染的是同一个客户端。要装进你实际使用的 profile——桌面端是 `desktop`，`dsh web` 服务是 `web`：
 
-命令行：
+| 使用场景 | 命令 |
+| --- | --- |
+| 桌面端 | `dsh plugin --profile desktop add dsh-markdown-live` |
+| `dsh web` 服务 | `dsh plugin --profile web add dsh-markdown-live` |
+| 任意 profile，从 GitHub 安装 | `dsh plugin --profile <名称> add github:YouYou-lj/dsh-markdown-live` |
+| 本地目录 | `dsh plugin --profile <名称> add link:/插件目录绝对路径` |
 
-```sh
-dsh plugin --profile web add dsh-markdown-live
-dsh plugin --profile web add github:YouYou-lj/dsh-markdown-live
-dsh plugin --profile web add link:/插件目录绝对路径
-```
-
-安装后刷新页面，可在 **设置 → 插件** 中开关。
+桌面端也可以完全不用命令行：**设置 → DSH 插件市场**（搜索 *Markdown composer*），或 **设置 → 插件 → 添加插件** 选择插件目录。安装后刷新页面，可在 **设置 → 插件** 中开关。
 
 ## 说明
 

@@ -27,17 +27,22 @@ them (`#　标题` counts).
 
 ## Install
 
-Marketplace — **Settings → DSH Plugin Market**, search *Markdown composer*, install, reload the page.
+The plugin is a Web-UI plugin: it runs in the browser-side client that both the
+desktop app and a `dsh web` server render. Install it into the profile you
+actually run — the desktop app uses the `desktop` profile, a `dsh web` server
+uses `web`:
 
-npm / GitHub / local checkout:
+| Where you use it | Command |
+| --- | --- |
+| Desktop app | `dsh plugin --profile desktop add dsh-markdown-live` |
+| `dsh web` server | `dsh plugin --profile web add dsh-markdown-live` |
+| Any profile, from GitHub | `dsh plugin --profile <name> add github:YouYou-lj/dsh-markdown-live` |
+| Local checkout | `dsh plugin --profile <name> add link:/absolute/path/to/dsh-markdown-live` |
 
-```sh
-dsh plugin --profile web add dsh-markdown-live
-dsh plugin --profile web add github:YouYou-lj/dsh-markdown-live
-dsh plugin --profile web add link:/absolute/path/to/dsh-markdown-live
-```
-
-Reload the page after installing, then toggle it in **Settings → Plugins**.
+In the desktop app you can also install without the CLI: **Settings → DSH
+Plugin Market** (search *Markdown composer*), or **Settings → Plugins → Add
+plugin** with the package directory. Reload the page after installing, then
+toggle it in **Settings → Plugins**.
 
 ## Notes
 
