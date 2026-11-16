@@ -1,0 +1,57 @@
+{
+  "name": "dsh-markdown-live",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Markdown rendering inside the DSH composer: finished lines render in place, markers collapse, code gets token colours, pasted blocks render, and the composer itself — size, auto-grow, @ mentions, / commands — is untouched.",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale",
+    "icon.svg",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "src",
+    "scripts",
+    "tests"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node tests/run-tests.mjs && node tests/markdown-matrix.mjs"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "markdown",
+    "composer",
+    "lexical",
+    "editor"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YouYou-lj/dsh-markdown-live.git"
+  },
+  "homepage": "https://github.com/YouYou-lj/dsh-markdown-live#readme",
+  "bugs": {
+    "url": "https://github.com/YouYou-lj/dsh-markdown-live/issues"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

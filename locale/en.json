@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Markdown composer",
+    "description": "Renders Markdown inside the message box while you type: finished lines show real formatting (headings grow, markers collapse, bullets become dots, code gets its surface and token colours) while the line you are editing keeps its literal Markdown. Shift+Enter continues a list and empty items exit it; pasted blocks render line by line. The composer is never replaced: its size, auto-grow, @ mentions and / commands are untouched, and the sent message is the literal Markdown you typed."
+  }
+}
