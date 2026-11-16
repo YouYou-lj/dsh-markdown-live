@@ -28,6 +28,7 @@ const { applySyntax, syntaxPlan, CLASSES } = require('../src/client/syntax.cjs')
 const { caretLineOf } = require('../src/client/render.cjs');
 const { tokenize } = require('../src/client/tokens.cjs');
 const { probeContract } = require('../src/client/compat.cjs');
+const { checkForUpdate, compareVersions, manifestUrlOf, parseVersion, versionFromManifest } = require('../src/client/update.cjs');
 const { continuationOf, exitMarkerOf, exitPlanOf, isEmptyListItem } = require('../src/client/list.cjs');
 const { readLines, planForCaret, kindAt } = require('../src/client/continuation.cjs');
 const { createRenumber, renumberPlan, SETTLE_MS } = require('../src/client/renumber.cjs');
@@ -476,6 +477,38 @@ test('collapse: an unsplit marker is reported instead of hiding content', () => 
 });
 
 
+
+// ------------------------------------------------------------- version check
+
+test('versions: comparison follows semver, including prereleases', () => {
+  assert.equal(compareVersions('1.2.0', '1.1.9') > 0, true);
+  assert.equal(compareVersions('1.2.0', '1.2.0'), 0);
+  assert.equal(compareVersions('1.2.0-rc.1', '1.2.0') < 0, true);
+  assert.equal(compareVersions('1.2.0-rc.2', '1.2.0-rc.1') > 0, true);
+  assert.deepEqual(parseVersion('v1.2.3'), { major: 1, minor: 2, patch: 3, pre: [] });
+  assert.equal(parseVersion('nope'), null);
+});
+
+test('versions: the upstream manifest and its URL are read safely', () => {
+  assert.equal(versionFromManifest('{"version":"1.3.0"}'), '1.3.0');
+  assert.equal(versionFromManifest('{'), null);
+  assert.equal(manifestUrlOf('https://github.com/YouYou-lj/dsh-markdown-live'),
+    'https://raw.githubusercontent.com/YouYou-lj/dsh-markdown-live/main/package.json');
+  assert.equal(manifestUrlOf('https://example.com/nope'), null);
+});
+
+test('versions: the check reports update, current and unknown', async () => {
+  const respond = body => async () => ({ ok: true, text: async () => body });
+  const newer = await checkForUpdate({ fetch: respond('{"version":"9.9.9"}'), repository: 'https://github.com/o/n', current: '1.0.0' });
+  assert.deepEqual(newer, { status: 'update', latest: '9.9.9' });
+  const same = await checkForUpdate({ fetch: respond('{"version":"1.0.0"}'), repository: 'https://github.com/o/n', current: '1.0.0' });
+  assert.equal(same.status, 'current');
+  const offline = await checkForUpdate({ fetch: async () => { throw new Error('offline'); }, repository: 'https://github.com/o/n', current: '1.0.0' });
+  assert.deepEqual(offline, { status: 'unknown', latest: null });
+  const badUrl = await checkForUpdate({ fetch: respond('{"version":"1.0.0"}'), repository: 'not-a-repo', current: '1.0.0' });
+  assert.equal(badUrl.status, 'unknown');
+});
+
 // --------------------------------------------------------------- host contract
 
 /**
@@ -837,7 +870,7 @@ test('bundle: compiles as a classic script', () => {
 
 test('bundle: registers under the package name and defines every module', () => {
   assert.match(clientSource, /id: 'dsh-markdown-live'/);
-  for (const id of ['constants', 'grammar', 'list', 'inline', 'dom', 'render', 'continuation', 'style-sheet', 'index']) {
+  for (const id of ['constants', 'grammar', 'list', 'inline', 'dom', 'render', 'continuation', 'style-sheet', 'update', 'chip', 'version', 'index']) {
     assert.match(clientSource, new RegExp(`__define\\('\\./${id}\\.cjs'`), `missing module ${id}`);
   }
   assert.match(clientSource, /return \{ name: entry\.name, apply: entry\.apply \}/);

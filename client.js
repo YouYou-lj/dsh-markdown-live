@@ -1484,6 +1484,234 @@ window.__ModuleLoader__.load({
       
     });
 
+    __define('./update.cjs', function (module, exports, require) {
+      /**
+       * Version comparison and the upstream check for the version chip.
+       *
+       * The check reads the repository's `package.json` from GitHub's raw host (CORS
+       * open, no token) and compares it with the version compiled into this bundle.
+       * It never throws: an offline machine or a rate limit simply reports "unknown"
+       * and the chip keeps showing the installed version.
+       */
+      
+      /**
+       * Parse a semantic version into its numeric and prerelease parts.
+       * @param {string} value - a version like `1.2.3` or `1.2.0-rc.1`.
+       * @returns {{major: number, minor: number, patch: number, pre: string[]} | null} the parts.
+       */
+      function parseVersion(value) {
+        if (typeof value !== 'string') return null;
+        const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(value.trim());
+        if (match === null) return null;
+        return {
+          major: Number(match[1]),
+          minor: Number(match[2]),
+          patch: Number(match[3]),
+          pre: match[4] === undefined ? [] : match[4].split('.'),
+        };
+      }
+      
+      /**
+       * Compare two semantic versions.
+       * @param {string} left - first version.
+       * @param {string} right - second version.
+       * @returns {number} negative when left is older, 0 when equal, positive when newer.
+       */
+      function compareVersions(left, right) {
+        const a = parseVersion(left);
+        const b = parseVersion(right);
+        if (a === null || b === null) return 0;
+        for (const key of ['major', 'minor', 'patch']) {
+          if (a[key] !== b[key]) return a[key] < b[key] ? -1 : 1;
+        }
+        // A release is newer than its own prereleases.
+        if (a.pre.length === 0 && b.pre.length > 0) return 1;
+        if (b.pre.length === 0 && a.pre.length > 0) return -1;
+        for (let index = 0; index < Math.max(a.pre.length, b.pre.length); index += 1) {
+          const leftPart = a.pre[index];
+          const rightPart = b.pre[index];
+          if (leftPart === rightPart) continue;
+          if (leftPart === undefined) return -1;
+          if (rightPart === undefined) return 1;
+          const leftNumber = /^\d+$/.test(leftPart);
+          const rightNumber = /^\d+$/.test(rightPart);
+          if (leftNumber && rightNumber) return Number(leftPart) < Number(rightPart) ? -1 : 1;
+          if (leftNumber) return -1;
+          if (rightNumber) return 1;
+          return leftPart < rightPart ? -1 : 1;
+        }
+        return 0;
+      }
+      
+      /**
+       * The published version in a repository's package.json.
+       * @param {string} text - raw file contents.
+       * @returns {string | null} the version, or null when it cannot be read.
+       */
+      function versionFromManifest(text) {
+        try {
+          const data = JSON.parse(text);
+          return typeof data.version === 'string' && parseVersion(data.version) !== null ? data.version : null;
+        } catch {
+          return null;
+        }
+      }
+      
+      /**
+       * Build the raw manifest URL for a repository.
+       * @param {string} repository - `https://github.com/<owner>/<name>`.
+       * @param {string} [branch] - default branch.
+       * @returns {string | null} the raw URL, or null.
+       */
+      function manifestUrlOf(repository, branch = 'main') {
+        const match = /^https?:\/\/github\.com\/([^/]+)\/([^/#?]+)/.exec(typeof repository === 'string' ? repository : '');
+        if (match === null) return null;
+        return `https://raw.githubusercontent.com/${match[1]}/${match[2]}/${branch}/package.json`;
+      }
+      
+      /**
+       * Ask GitHub for the published version and compare it with the installed one.
+       *
+       * @param {{fetch: typeof fetch, repository: string, current: string, branch?: string, timeoutMs?: number}} options - check inputs.
+       * @returns {Promise<{status: 'current'|'update'|'unknown', latest: string | null}>} the result.
+       */
+      async function checkForUpdate(options) {
+        const url = manifestUrlOf(options.repository, options.branch);
+        if (url === null || typeof options.fetch !== 'function') return { status: 'unknown', latest: null };
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        const timer = setTimeout(() => { if (controller !== null) controller.abort(); }, options.timeoutMs ?? 6000);
+        try {
+          const response = await options.fetch(url, {
+            cache: 'no-store',
+            signal: controller === null ? undefined : controller.signal,
+          });
+          if (response === null || response === undefined || response.ok !== true) return { status: 'unknown', latest: null };
+          const latest = versionFromManifest(await response.text());
+          if (latest === null) return { status: 'unknown', latest: null };
+          return { status: compareVersions(latest, options.current) > 0 ? 'update' : 'current', latest };
+        } catch {
+          return { status: 'unknown', latest: null };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      
+      module.exports = { checkForUpdate, compareVersions, manifestUrlOf, parseVersion, versionFromManifest };
+      
+    });
+
+    __define('./chip.cjs', function (module, exports, require) {
+      /**
+       * The version chip: the installed version in the composer dock, and — when the
+       * repository publishes a newer one — a link that opens it.
+       *
+       * The chip is optional decoration: it registers into `conversation.composer.dock`
+       * only when that slot exists, and any failure is contained so the rendering
+       * layer never depends on it.
+       */
+      const { checkForUpdate } = require('./update.cjs');
+      
+      /**
+       * Build the React component for one runtime descriptor.
+       * @param {object} React - the host's React.
+       * @param {{version: string, repository: string}} runtime - compiled-in version info.
+       * @returns {Function} the component.
+       */
+      function createChip(React, runtime) {
+        const h = React.createElement;
+      
+        /**
+         * The chip itself.
+         * @returns {object} a React element.
+         */
+        function VersionChip() {
+          const [state, setState] = React.useState({ status: 'checking', latest: null });
+          React.useEffect(() => {
+            let cancelled = false;
+            checkForUpdate({
+              fetch: typeof window === 'undefined' || typeof window.fetch !== 'function' ? undefined : window.fetch.bind(window),
+              repository: runtime.repository,
+              current: runtime.version,
+            }).then(result => {
+              if (!cancelled) setState(result);
+            });
+            return () => { cancelled = true; };
+          }, []);
+      
+          const update = state.status === 'update' && typeof state.latest === 'string';
+          const label = update ? `v${runtime.version} → v${state.latest}` : `v${runtime.version}`;
+          const style = {
+            fontSize: '11px',
+            lineHeight: '20px',
+            whiteSpace: 'nowrap',
+            color: update ? 'var(--dsw-alias-link, #2f7ce0)' : 'var(--dsw-alias-label-caption, rgba(136, 142, 150, 0.9))',
+            textDecoration: update ? 'underline' : 'none',
+            textUnderlineOffset: '2px',
+          };
+          if (update) {
+            return h('a', {
+              href: runtime.repository,
+              target: '_blank',
+              rel: 'noreferrer',
+              title: 'dsh-markdown-live — open the repository to update',
+              style,
+            }, label);
+          }
+          return h('span', { title: 'dsh-markdown-live', style }, label);
+        }
+      
+        return VersionChip;
+      }
+      
+      /**
+       * Register the chip into the composer dock, waiting briefly for the slot
+       * service so an early apply cannot lose it.
+       *
+       * @param {object} ctx - the Cordis client context.
+       * @param {{version: string, repository: string}} runtime - compiled-in version info.
+       * @returns {{dispose: () => void}} the registration handle.
+       */
+      function registerVersionChip(ctx, runtime) {
+        let timer = 0;
+        let attempts = 0;
+        let registered = false;
+      
+        /**
+         * Try once, then retry while the slot service is still missing.
+         * @returns {void}
+         */
+        const attempt = () => {
+          const slots = ctx === null || ctx === undefined ? null : ctx.slots;
+          if (slots !== null && slots !== undefined && typeof slots.inject === 'function' && typeof slots.register === 'function') {
+            try {
+              slots.inject('conversation.composer.dock', () => slots.register({
+                name: 'conversation.composer.dock',
+                id: 'markdown-live-version',
+                order: 40,
+              }, createChip(require('react'), runtime)));
+              registered = true;
+            } catch (error) {
+              console.warn('[markdown-live] version chip unavailable', error);
+            }
+            return;
+          }
+          attempts += 1;
+          if (attempts <= 6) timer = setTimeout(attempt, 400 * attempts);
+        };
+      
+        attempt();
+        return {
+          dispose() {
+            if (timer !== 0) clearTimeout(timer);
+            timer = 0;
+          },
+        };
+      }
+      
+      module.exports = { createChip, registerVersionChip };
+      
+    });
+
     __define('./render.cjs', function (module, exports, require) {
       /**
        * The render loop: read the composer, classify its lines, and publish the
@@ -2853,6 +3081,15 @@ window.__ModuleLoader__.load({
       const { createContinuation } = require('./continuation.cjs');
       const { createRenderer, highlightApiAvailable } = require('./render.cjs');
       const { createRenumber } = require('./renumber.cjs');
+      const { registerVersionChip } = require('./chip.cjs');
+      
+      /** Version info compiled into the bundle by scripts/build.mjs. */
+      let runtime = { version: '0.0.0', repository: 'https://github.com/YouYou-lj/dsh-markdown-live' };
+      try {
+        runtime = require('./version.cjs');
+      } catch {
+        // Source runs (tests) have no generated version module.
+      }
       const { injectStyle, removeStyle } = require('./style-sheet.cjs');
       
       /** Plugin id; matches the cordis.patch.yml row. */
@@ -2874,11 +3111,19 @@ window.__ModuleLoader__.load({
         console.info(`[markdown-live] active; CSS Custom Highlight API: ${highlightApiAvailable()}`);
         const renderer = createRenderer();
         const renumber = createRenumber();
+        let chip = null;
+        try {
+          chip = registerVersionChip(ctx, runtime);
+        } catch (error) {
+          // A missing slot service must never cost the rendering layer.
+          console.warn('[markdown-live] version chip skipped', error);
+        }
         // A marker the continuation inserts changes the numbering below it; repair
         // immediately instead of waiting for the settle timer.
         const continuation = createContinuation({ onDraftChanged: () => renumber.repairNow() });
       
         const dispose = () => {
+          if (chip !== null) chip.dispose();
           renumber.dispose();
           continuation.dispose();
           renderer.dispose();
@@ -2907,6 +3152,10 @@ window.__ModuleLoader__.load({
       
       module.exports = { name, apply };
       
+    });
+
+    __define('./version.cjs', function (module, exports, require) {
+      module.exports = { version: "1.2.0", repository: "https://github.com/YouYou-lj/dsh-markdown-live" };
     });
 
     var entry = __load('./index.cjs');

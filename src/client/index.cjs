@@ -16,6 +16,15 @@
 const { createContinuation } = require('./continuation.cjs');
 const { createRenderer, highlightApiAvailable } = require('./render.cjs');
 const { createRenumber } = require('./renumber.cjs');
+const { registerVersionChip } = require('./chip.cjs');
+
+/** Version info compiled into the bundle by scripts/build.mjs. */
+let runtime = { version: '0.0.0', repository: 'https://github.com/YouYou-lj/dsh-markdown-live' };
+try {
+  runtime = require('./version.cjs');
+} catch {
+  // Source runs (tests) have no generated version module.
+}
 const { injectStyle, removeStyle } = require('./style-sheet.cjs');
 
 /** Plugin id; matches the cordis.patch.yml row. */
@@ -37,11 +46,19 @@ function apply(ctx) {
   console.info(`[markdown-live] active; CSS Custom Highlight API: ${highlightApiAvailable()}`);
   const renderer = createRenderer();
   const renumber = createRenumber();
+  let chip = null;
+  try {
+    chip = registerVersionChip(ctx, runtime);
+  } catch (error) {
+    // A missing slot service must never cost the rendering layer.
+    console.warn('[markdown-live] version chip skipped', error);
+  }
   // A marker the continuation inserts changes the numbering below it; repair
   // immediately instead of waiting for the settle timer.
   const continuation = createContinuation({ onDraftChanged: () => renumber.repairNow() });
 
   const dispose = () => {
+    if (chip !== null) chip.dispose();
     renumber.dispose();
     continuation.dispose();
     renderer.dispose();

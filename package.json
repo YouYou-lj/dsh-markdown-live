@@ -1,6 +1,6 @@
 {
   "name": "dsh-markdown-live",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "type": "module",
   "description": "Markdown rendering inside the DSH composer: finished lines render in place, markers collapse, code gets token colours, pasted blocks render, and the composer itself — size, auto-grow, @ mentions, / commands — is untouched.",
   "main": "./index.js",

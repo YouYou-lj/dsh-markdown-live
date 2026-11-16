@@ -25,6 +25,8 @@ const MODULES = [
   './tokens.cjs',
   './syntax.cjs',
   './newlines.cjs',
+  './update.cjs',
+  './chip.cjs',
   './render.cjs',
   './continuation.cjs',
   './renumber.cjs',
@@ -43,6 +45,17 @@ function wrap(id, source) {
 }
 
 const sources = await Promise.all(MODULES.map(id => readFile(join(root, 'src/client', id.slice(2)), 'utf8')));
+
+const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+const repository = String(manifest.repository?.url ?? manifest.homepage ?? '')
+  .replace(/^git\+/, '')
+  .replace(/\.git$/, '');
+
+/** The version module is generated so the bundle always reports its own build. */
+const versionModule = `    __define('./version.cjs', function (module, exports, require) {
+      module.exports = { version: ${JSON.stringify(manifest.version)}, repository: ${JSON.stringify(repository)} };
+    });
+`;
 
 const artifact = `/*!
  * ${packageName} — generated browser bundle. Do not edit.
@@ -72,6 +85,7 @@ window.__ModuleLoader__.load({
     }
 
 ${sources.map((source, index) => wrap(MODULES[index], source)).join('\n')}
+${versionModule}
     var entry = __load('./index.cjs');
     return { name: entry.name, apply: entry.apply };
   },

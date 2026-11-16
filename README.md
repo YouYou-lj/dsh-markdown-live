@@ -44,6 +44,15 @@ Plugin Market** (search *Markdown composer*), or **Settings → Plugins → Add
 plugin** with the package directory. Reload the page after installing, then
 toggle it in **Settings → Plugins**.
 
+## Version chip
+
+The composer dock shows the installed version (`v1.2.0`). When the repository
+publishes a newer one, the chip becomes a link — `v1.2.0 → v1.3.0` — that opens
+the repository so you can update. The check reads the repository's
+`package.json` once per page; offline, rate-limited, or blocked network simply
+leaves the installed version shown. The chip is optional decoration: if the dock
+slot is missing, rendering is unaffected.
+
 ## Notes
 
 - Chromium's `::highlight()` cannot change font weight or style, so bold is drawn
